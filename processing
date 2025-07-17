@@ -1,0 +1,184 @@
+mport processing.serial.*;
+
+Serial myPort;
+String portName;
+
+// array para almacenar los modelos.
+// PShape[x], x= número de modelos a mostrar.
+PShape[] modelos = new PShape[12];
+int modeloActual = -1;
+
+float rotacionY = 0;
+float zoom = 1.0;    // Perilla para hacer zoom
+float rotacionX = 0;
+
+PFont myFont; // variable para font
+
+void setup() {
+  size(800, 600, P3D); // tamaño de la ventana
+  // println(Serial.list()); // Imprime la lista de puertos seriales disponibles
+
+  // Para cargar la tipografía desde la carpeta data
+  myFont = loadFont("Frutiger-36.vlw");
+  textFont(myFont); // Establece esta como la tipografía actual para el sketch
+
+  portName = "COM3";
+
+  // Verifica si el puerto COM3 está disponible
+  boolean com3Found = false;
+  for (String port : Serial.list()) {
+    if (port.equals("COM3")) {
+      com3Found = true;
+      break;
+    }
+  }
+
+  if (!com3Found) {
+    println("Error: COM3 no encontrado en la lista de puertos disponibles.");
+    println("Puertos disponibles: " + join(Serial.list(), ", "));
+    exit(); // Termina el programa si COM3 no se encuentra
+  }
+
+  // Inicia la comunicación serial
+  myPort = new Serial(this, portName, 9600);
+  myPort.bufferUntil('\n'); // Lee los datos hasta que encuentre un salto de línea
+
+  textureMode(NORMAL); // Mantiene el modo de textura corregido para los modelos
+
+  // Carga los modelos 3D
+  for (int i = 0; i < modelos.length; i++) {
+    String nombreArchivo = "Rayado" + i + ".obj";
+    modelos[i] = loadShape(nombreArchivo);
+    if (modelos[i] == null) {
+      println("Error al cargar " + nombreArchivo + ". revisar existencia de carpeta 'data'.");
+    } else {
+      modelos[i].scale(80.0);       // Escalar el modelo
+      modelos[i].scale(-1, 1, 1);   // Reflejar el modelo (para cuando está al revés)
+    }
+  }
+
+  lights(); // luces para que los modelos 3D sean visibles
+  noStroke(); // Deshabilita los bordes para los modelos 3D
+  smooth(); // Suaviza los bordes
+}
+
+void draw() {
+  background(50); // Establece el color de fondo de la ventana
+
+  // cámara para la vista 3D
+  camera(width/2, height/2, (height/2) / tan(PI*30 / 180), width/2, height/2, 0, 0, 1, 0);
+
+  // ~~ Bloque para el dibujo del modelo 3D ~~
+  pushMatrix(); // Guarda el estado actual del sistema de coordenadas
+
+  // Aplica las transformaciones (traslación y rotaciones) solo al modelo 3D
+  translate(width/2, height/2, 0); // Mueve el origen al centro de la ventana para el modelo
+  
+
+  if (modeloActual != -1 && modelos[modeloActual] != null) {
+    rotateX(PI); // Corrección fija si el modelo aparece "boca abajo"
+    rotateX(rotacionX); // Aplica la rotación X (controlada por potenciómetro)
+    rotateY(rotacionY); // Aplica la rotación Y (controlada por potenciómetro)
+    scale(zoom); // 'zoom' para escalar 
+    
+    shape(modelos[modeloActual]); // Dibuja el modelo 3D actual
+  }
+
+  popMatrix(); // Restaura el sistema de coordenadas al estado guardado,
+               // desaplicando las transformaciones del modelo. Esto asegura que el texto
+               // se dibuje en las coordenadas 2D de la pantalla.
+
+  // ~~ Bloque para los textos ~~
+  fill(255); // color del texto, blanco
+  textSize(36); // tamaño del texto
+
+  // Texto descriptivo de cada modelo 3D
+  if (modeloActual == 0) { // Si se está mostrando Rayado0
+    text("Asiento en el Ágora. 29 de mayo", 50, 70);
+  } else if (modeloActual == 1) { // Si se está mostrando Rayado1 
+    text("Tuberías y vigas. 29 de mayo - 10 de julio", 50, 50);
+  } else if (modeloActual == 2) { // Si se está mostrando Rayado2
+    text("Casilleros Hoyo, 29 de mayo, 2025", 50, 50); 
+  } else if (modeloActual == 3) { // Si se está mostrando Rayado3
+    text("Basureros. 29 de mayo", 50, 50);
+  } else if (modeloActual == 4) { // Si se está mostrando Rayado4
+    text("Jardinera Pircas, 5 de junio", 50, 50);
+  } else if (modeloActual == 5) { // Si se está mostrando Rayado5
+    text("Mesas Pircas, 5 de junio", 50, 50);    
+  } else if (modeloActual == 6) { // Si se está mostrando Rayado6
+    text("Contenedor Pircas, 5 de junio", 50, 50);    
+  } else if (modeloActual == 7) { // Si se está mostrando Rayado7
+    text("Baños en la FAU, 5 de junio", 50, 50);    
+  } else if (modeloActual == 8) { // Si se está mostrando Rayado8
+    text("Asientos pircas, 5 de junio", 50, 50);    
+  } else if (modeloActual == 9) { // Si se está mostrando Rayado9
+    text("Titanic, 15 de julio", 50, 50);        
+  } else if (modeloActual == 10) { // Si se está mostrando Rayado10
+    text("Taller de impresión, 19 de junio", 50, 50);     
+  } else if (modeloActual == 11) { // Si se está mostrando Rayado11
+    text("blobblob", 50, 50);  
+  }
+  
+}
+
+void serialEvent(Serial p) {
+  String inString = p.readStringUntil('\n'); // Lee la cadena hasta el salto de línea
+
+  if (inString != null) {
+    inString = trim(inString); // Elimina espacios en blanco al principio y al final
+
+    // Si la cadena comienza con "B" (señal de botón)
+    if (inString.startsWith("B")) {
+      String idBotonStr = inString.substring(1); // Obtiene el número del botón (ej: "0", "1")
+      try {
+        int idBoton = Integer.parseInt(idBotonStr); // Convierte a entero
+        // Verifica que el ID del botón esté dentro del rango de modelos
+        if (idBoton >= 0 && idBoton < modelos.length) {
+          modeloActual = idBoton; // Establece el modelo actual
+          rotacionY = 0;          // Reinicia la rotación Y
+          rotacionX = 0;          // Reinicia la rotación X
+          println("Botón presionado: " + idBoton + ", mostrando modelo 'Rayado" + modeloActual + ".obj'");
+        } else {
+          println("Error: ID de botón fuera de rango: " + idBoton);
+        }
+      } catch (NumberFormatException e) {
+        println("Error de formato de número de botón: " + idBotonStr);
+      }
+    }
+    // Si la cadena comienza con "P" (potenciómetro Y)
+    else if (inString.startsWith("P")) {
+      String valorPotStr = inString.substring(1);
+      try {
+        int valorPot = Integer.parseInt(valorPotStr);
+        // Mapea el valor del potenciómetro (0-1023) a un rango de rotación (0 a 2*PI radianes)
+        rotacionY = map(valorPot, 0, 1023, 0, TWO_PI);
+      } catch (NumberFormatException e) {
+        println("Error de formato de número de potenciómetro Y: " + valorPotStr);
+      }
+    }
+    
+    // Si la cadena comienza con "R" (potenciómetro Zoom)
+    else if (inString.startsWith("R")) { 
+      try {
+        int valorPot = Integer.parseInt(inString.substring(1));
+        // Mapea el valor del potenciómetro (0-1023) a un rango de zoom.
+        // Puedes ajustar el rango (ej. 0.5 a 2.0) según tus necesidades.
+        zoom = map(valorPot, 0, 1023, 0.5, 2.0); // De 0.5x a 2.0x
+      } catch (NumberFormatException e) {
+        println("Error de formato de número de potenciómetro Zoom: Falló la conversión de '" + inString + "'");
+      }
+    }
+    
+    // Si la cadena comienza con "Q" (potenciómetro X)
+    else if (inString.startsWith("Q")) {
+      String valorPotStr = inString.substring(1);
+      try {
+        int valorPot = Integer.parseInt(valorPotStr);
+        // Mapea el valor del potenciómetro (0-1023) a un rango de rotación (-PI/2 a PI/2 radianes)
+        rotacionX = map(valorPot, 0, 1023, -PI/2, PI/2);
+      } catch (NumberFormatException e) {
+        println("Error de formato de número de potenciómetro X: " + valorPotStr);
+      }
+    }
+  }
+}
