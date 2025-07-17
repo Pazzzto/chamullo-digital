@@ -1,0 +1,70 @@
+// Para definir los pines de los pulsadores
+const int buttonPins[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}; // Pines para los 8 pulsadores
+const int numButtons = sizeof(buttonPins) / sizeof(buttonPins[0]);
+
+int lastButtonState[numButtons];
+
+const int potYPin = A3;
+const int potZPin = A4;
+const int potXPin = A5;
+
+
+int potYValue = 0;
+int potZValue = 0;
+int potXValue = 0;
+
+
+unsigned long lastPotSendTime = 0;
+const long potSendInterval = 50; // intervalo a 50ms
+                                  // Reduce la tasa de envío de potenciómetros.
+
+void setup() {
+  Serial.begin(9600);
+
+  for (int i = 0; i < numButtons; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+    lastButtonState[i] = HIGH;
+  }
+}
+
+void loop() {
+  // ~~ Leer y enviar datos de los pulsadores ~~
+  for (int i = 0; i < numButtons; i++) {
+    int currentButtonState = digitalRead(buttonPins[i]);
+
+    if (currentButtonState != lastButtonState[i] && currentButtonState == LOW) {
+      Serial.print("B");
+      Serial.println(i);
+      delay(50);
+    }
+    lastButtonState[i] = currentButtonState;
+  }
+
+  // ~~ Leer y enviar datos de los potenciómetros (controlado por tiempo) ~~
+  // Solo se envía si ha pasado el intervalo de tiempo.
+  if (millis() - lastPotSendTime >= potSendInterval) {
+    int currentPotYValue = analogRead(potYPin);
+    int currentPotXValue = analogRead(potXPin);
+    int currentPotZValue = analogRead(potZPin);
+
+    // solo se envía si el valor ha cambiado mucho (para reducir tráfico)
+    // ayuda a reducir el "ruido" cuando el potenciómetro está quieto
+    if (abs(currentPotYValue - potYValue) > 5) { // Un umbral de 5 para detectar cambio
+      Serial.print("P");
+      Serial.println(currentPotYValue);
+      potYValue = currentPotYValue;
+    }
+    if (abs(currentPotXValue - potXValue) > 5) { // Un umbral de 5 para detectar cambio
+      Serial.print("Q");
+      Serial.println(currentPotXValue);
+      potXValue = currentPotXValue;
+    }
+    if (abs(currentPotZValue - potZValue) > 5) { // Un umbral de 5 para detectar cambio
+      Serial.print("R");
+      Serial.println(currentPotZValue);
+      potZValue = currentPotZValue;
+    }
+
+    lastPotSendTime = millis();
+  }
+}
